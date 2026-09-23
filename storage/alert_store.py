@@ -25,7 +25,7 @@ def initialize_database(db_path=DEFAULT_DB_PATH):
         CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-            alert_id TEXT NOT NULL,
+            alert_id TEXT NOT NULL UNIQUE,
             timestamp TEXT NOT NULL,
 
             rule_id TEXT NOT NULL,
@@ -44,7 +44,9 @@ def initialize_database(db_path=DEFAULT_DB_PATH):
 
             tactic TEXT,
             technique TEXT,
-            technique_id TEXT
+            technique_id TEXT,
+
+            status TEXT NOT NULL DEFAULT 'New'
         )
         """
     )
@@ -62,7 +64,7 @@ def save_alert(alert, db_path=DEFAULT_DB_PATH):
 
     cursor.execute(
         """
-        INSERT INTO alerts (
+        INSERT or IGNORE INTO alerts (
             alert_id,
             timestamp,
             rule_id,
@@ -142,3 +144,39 @@ def get_alerts(db_path=DEFAULT_DB_PATH):
         alerts.append(alert)
 
     return alerts
+def update_alert_status(
+    alert_id,
+    status,
+    db_path=DEFAULT_DB_PATH
+):
+    allowed_statuses = [
+        "New",
+        "Investigating",
+        "Resolved"
+    ]
+
+    if status not in allowed_statuses:
+        raise ValueError(
+            f"Invalid alert status: {status}"
+        )
+
+    initialize_database(db_path)
+
+    connection = sqlite3.connect(db_path)
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        UPDATE alerts
+        SET status = ?
+        WHERE alert_id = ?
+        """,
+        (
+            status,
+            alert_id
+        )
+    )
+
+    connection.commit()
+    connection.close()

@@ -1,19 +1,38 @@
-from scapy.all import IP, TCP, UDP, ICMP, DNS, DNSQR, Raw, wrpcap
+from datetime import datetime
+
+from scapy.all import (
+    IP,
+    TCP,
+    UDP,
+    ICMP,
+    DNS,
+    DNSQR,
+    Raw,
+    wrpcap
+)
 
 
 packets = []
+
+# Use the current time as the starting point
+base_time = datetime.now().timestamp()
 
 
 # --------------------------------------------------
 # 1. Normal traffic
 # --------------------------------------------------
 
-packets.append(
+normal_tcp = (
     IP(src="192.168.1.10", dst="192.168.1.20")
     / TCP(sport=50000, dport=443, flags="S")
 )
 
-packets.append(
+normal_tcp.time = base_time
+
+packets.append(normal_tcp)
+
+
+normal_dns = (
     IP(src="192.168.1.10", dst="8.8.8.8")
     / UDP(sport=53000, dport=53)
     / DNS(
@@ -21,6 +40,10 @@ packets.append(
         qd=DNSQR(qname="www.example.com")
     )
 )
+
+normal_dns.time = base_time + 0.5
+
+packets.append(normal_dns)
 
 
 # --------------------------------------------------
@@ -41,7 +64,11 @@ for i in range(25):
         )
     )
 
-    packet.time = 1 + (i * 0.1)
+    packet.time = (
+        base_time
+        + 1
+        + (i * 0.1)
+    )
 
     packets.append(packet)
 
@@ -64,7 +91,11 @@ for i in range(120):
         )
     )
 
-    packet.time = 10 + (i * 0.05)
+    packet.time = (
+        base_time
+        + 10
+        + (i * 0.05)
+    )
 
     packets.append(packet)
 
@@ -78,6 +109,7 @@ suspicious_query = (
     "u3i4o7p8a1s2d3f4.example.com"
 )
 
+
 dns_packet = (
     IP(
         src="192.168.1.70",
@@ -89,11 +121,13 @@ dns_packet = (
     )
     / DNS(
         rd=1,
-        qd=DNSQR(qname=suspicious_query)
+        qd=DNSQR(
+            qname=suspicious_query
+        )
     )
 )
 
-dns_packet.time = 30
+dns_packet.time = base_time + 30
 
 packets.append(dns_packet)
 
@@ -118,19 +152,24 @@ for i in range(15):
         )
     )
 
-    packet.time = 40 + i
+    packet.time = (
+        base_time
+        + 40
+        + i
+    )
 
     packets.append(packet)
 
 
 # --------------------------------------------------
-# Write PCAP
+# Save demo PCAP
 # --------------------------------------------------
 
 wrpcap(
     "samples/nidas_demo.pcap",
     packets
 )
+
 
 print(
     f"Created samples/nidas_demo.pcap "
