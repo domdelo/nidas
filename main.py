@@ -59,7 +59,8 @@ def run_pcap_analysis(file_path):
     )
 
     save_alerts(
-        alerts
+        alerts,
+        alert_source="PCAP"
     )
 
     print()
@@ -198,7 +199,8 @@ def run_live_monitor(interface):
             if new_alerts:
 
                 save_alerts(
-                    new_alerts
+                    new_alerts,
+                    alert_source='Live'
                 )
 
                 print(

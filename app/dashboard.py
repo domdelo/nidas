@@ -38,6 +38,7 @@ st.set_page_config(
 
 
 st.title("NIDAS")
+
 st.subheader(
     "Network Intrusion Detection & Alert System"
 )
@@ -135,6 +136,8 @@ def monitoring_dashboard():
     )
 
 
+    # Severity filter
+
     severity_options = sorted(
         df["severity"]
         .dropna()
@@ -150,6 +153,8 @@ def monitoring_dashboard():
         )
     )
 
+
+    # Detection rule filter
 
     rule_options = sorted(
         df["rule_name"]
@@ -167,6 +172,8 @@ def monitoring_dashboard():
     )
 
 
+    # Source IP filter
+
     source_options = sorted(
         df["source_ip"]
         .dropna()
@@ -183,6 +190,26 @@ def monitoring_dashboard():
     )
 
 
+    # Alert source filter
+
+    alert_source_options = sorted(
+        df["alert_source"]
+        .dropna()
+        .unique()
+    )
+
+    selected_alert_sources = (
+        st.sidebar.multiselect(
+            "Alert Source",
+            alert_source_options,
+            default=alert_source_options,
+            key="alert_source_filter"
+        )
+    )
+
+
+    # Apply filters
+
     filtered_df = df[
         df["severity"].isin(
             selected_severities
@@ -192,6 +219,9 @@ def monitoring_dashboard():
         )
         & df["source_ip"].isin(
             selected_sources
+        )
+        & df["alert_source"].isin(
+            selected_alert_sources
         )
     ]
 
@@ -326,6 +356,7 @@ def monitoring_dashboard():
             "timestamp",
             "severity",
             "status",
+            "alert_source",
             "rule_id",
             "rule_name",
             "source_ip",
@@ -373,6 +404,7 @@ def monitoring_dashboard():
         label = (
             f"{row['alert_id']} | "
             f"{row['severity'].upper()} | "
+            f"{row['alert_source']} | "
             f"{row['rule_name']} | "
             f"{row['source_ip']}"
         )
@@ -405,6 +437,10 @@ def monitoring_dashboard():
     )
 
 
+    # ----------------------------------------------
+    # Alert details - left column
+    # ----------------------------------------------
+
     with detail1:
 
         st.write(
@@ -435,6 +471,17 @@ def monitoring_dashboard():
             ]
         )
 
+        st.write(
+            "**Alert Source:**",
+            selected_alert[
+                "alert_source"
+            ]
+        )
+
+
+    # ----------------------------------------------
+    # Alert details - right column
+    # ----------------------------------------------
 
     with detail2:
 
@@ -466,6 +513,10 @@ def monitoring_dashboard():
             ]
         )
 
+
+    # ----------------------------------------------
+    # Description
+    # ----------------------------------------------
 
     st.write(
         "**Description:**"
@@ -606,5 +657,9 @@ def monitoring_dashboard():
 
         st.rerun()
 
+
+# --------------------------------------------------
+# Run dashboard
+# --------------------------------------------------
 
 monitoring_dashboard()

@@ -9,6 +9,7 @@ DEFAULT_DB_PATH = Path("data/nidas.db")
 
 
 def initialize_database(db_path=DEFAULT_DB_PATH):
+
     db_path = Path(db_path)
 
     db_path.parent.mkdir(
@@ -16,7 +17,9 @@ def initialize_database(db_path=DEFAULT_DB_PATH):
         exist_ok=True
     )
 
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(
+        db_path
+    )
 
     cursor = connection.cursor()
 
@@ -46,25 +49,64 @@ def initialize_database(db_path=DEFAULT_DB_PATH):
             technique TEXT,
             technique_id TEXT,
 
-            status TEXT NOT NULL DEFAULT 'New'
+            status TEXT NOT NULL DEFAULT 'New',
+
+            alert_source TEXT NOT NULL DEFAULT 'Unknown'
         )
         """
     )
+
+    # Check the existing database schema.
+    cursor.execute(
+        """
+        PRAGMA table_info(alerts)
+        """
+    )
+
+    columns = cursor.fetchall()
+
+    column_names = []
+
+    for column in columns:
+        column_names.append(
+            column[1]
+        )
+
+    # Migrate databases created before
+    # alert_source was added.
+    if "alert_source" not in column_names:
+
+        cursor.execute(
+            """
+            ALTER TABLE alerts
+            ADD COLUMN alert_source TEXT
+            NOT NULL DEFAULT 'Unknown'
+            """
+        )
 
     connection.commit()
     connection.close()
 
 
-def save_alert(alert, db_path=DEFAULT_DB_PATH):
-    initialize_database(db_path)
+def save_alert(
+    alert,
+    db_path=DEFAULT_DB_PATH,
+    alert_source="Unknown"
+):
 
-    connection = sqlite3.connect(db_path)
+    initialize_database(
+        db_path
+    )
+
+    connection = sqlite3.connect(
+        db_path
+    )
 
     cursor = connection.cursor()
 
     cursor.execute(
         """
-        INSERT or IGNORE INTO alerts (
+        INSERT OR IGNORE INTO alerts (
             alert_id,
             timestamp,
             rule_id,
@@ -77,9 +119,13 @@ def save_alert(alert, db_path=DEFAULT_DB_PATH):
             evidence,
             tactic,
             technique,
-            technique_id
+            technique_id,
+            alert_source
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?
+        )
         """,
         (
             alert.alert_id,
@@ -91,10 +137,13 @@ def save_alert(alert, db_path=DEFAULT_DB_PATH):
             alert.destination_ip,
             alert.protocol,
             alert.description,
-            json.dumps(alert.evidence),
+            json.dumps(
+                alert.evidence
+            ),
             alert.tactic,
             alert.technique,
-            alert.technique_id
+            alert.technique_id,
+            alert_source
         )
     )
 
@@ -102,20 +151,36 @@ def save_alert(alert, db_path=DEFAULT_DB_PATH):
     connection.close()
 
 
-def save_alerts(alerts, db_path=DEFAULT_DB_PATH):
+def save_alerts(
+    alerts,
+    db_path=DEFAULT_DB_PATH,
+    alert_source="Unknown"
+):
 
     for alert in alerts:
+
         save_alert(
             alert,
-            db_path
+            db_path,
+            alert_source
         )
-def get_alerts(db_path=DEFAULT_DB_PATH):
 
-    initialize_database(db_path)
 
-    connection = sqlite3.connect(db_path)
+def get_alerts(
+    db_path=DEFAULT_DB_PATH
+):
 
-    connection.row_factory = sqlite3.Row
+    initialize_database(
+        db_path
+    )
+
+    connection = sqlite3.connect(
+        db_path
+    )
+
+    connection.row_factory = (
+        sqlite3.Row
+    )
 
     cursor = connection.cursor()
 
@@ -134,21 +199,32 @@ def get_alerts(db_path=DEFAULT_DB_PATH):
     alerts = []
 
     for row in rows:
-        alert = dict(row)
+
+        alert = dict(
+            row
+        )
 
         if alert["evidence"]:
-            alert["evidence"] = json.loads(
-                alert["evidence"]
+
+            alert["evidence"] = (
+                json.loads(
+                    alert["evidence"]
+                )
             )
 
-        alerts.append(alert)
+        alerts.append(
+            alert
+        )
 
     return alerts
+
+
 def update_alert_status(
     alert_id,
     status,
     db_path=DEFAULT_DB_PATH
 ):
+
     allowed_statuses = [
         "New",
         "Investigating",
@@ -156,13 +232,19 @@ def update_alert_status(
     ]
 
     if status not in allowed_statuses:
+
         raise ValueError(
-            f"Invalid alert status: {status}"
+            f"Invalid alert status: "
+            f"{status}"
         )
 
-    initialize_database(db_path)
+    initialize_database(
+        db_path
+    )
 
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(
+        db_path
+    )
 
     cursor = connection.cursor()
 
