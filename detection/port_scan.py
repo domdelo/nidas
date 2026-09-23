@@ -15,6 +15,7 @@ def detect_port_scans(
     connections = defaultdict(list)
 
     for packet in packets:
+
         if packet.protocol != "TCP":
             continue
 
@@ -32,42 +33,75 @@ def detect_port_scans(
             packet.destination_ip
         )
 
-        connections[key].append(packet)
+        connections[key].append(
+            packet
+        )
+
 
     # Analyze each source/destination pair
-    for (source_ip, destination_ip), group in connections.items():
+    for (
+        source_ip,
+        destination_ip
+    ), group in connections.items():
 
-        group.sort(key=lambda packet: packet.timestamp)
+        group.sort(
+            key=lambda packet: packet.timestamp
+        )
 
-        for start_index in range(len(group)):
-            start_time = group[start_index].timestamp
+        for start_index in range(
+            len(group)
+        ):
+
+            start_time = (
+                group[
+                    start_index
+                ].timestamp
+            )
 
             ports = set()
 
-            for packet in group[start_index:]:
+            for packet in group[
+                start_index:
+            ]:
 
                 time_difference = (
-                    packet.timestamp - start_time
+                    packet.timestamp
+                    - start_time
                 )
 
-                if time_difference > timedelta(seconds=window_seconds):
+                if (
+                    time_difference
+                    > timedelta(
+                        seconds=window_seconds
+                    )
+                ):
+
                     break
 
-                ports.add(packet.destination_port)
+                ports.add(
+                    packet.destination_port
+                )
 
-            if len(ports) >= port_threshold:
+
+            if (
+                len(ports)
+                >= port_threshold
+            ):
 
                 alert = SecurityAlert(
-                    alert_id=f"PORTSCAN-{len(alerts) + 1:04d}",
                     timestamp=start_time,
 
                     rule_id="NET-001",
-                    rule_name="Port Scan Detected",
+                    rule_name=(
+                        "Port Scan Detected"
+                    ),
 
                     severity="medium",
 
                     source_ip=source_ip,
-                    destination_ip=destination_ip,
+                    destination_ip=(
+                        destination_ip
+                    ),
 
                     protocol="TCP",
 
@@ -79,19 +113,33 @@ def detect_port_scans(
                     ),
 
                     evidence={
-                        "unique_port_count": len(ports),
-                        "ports": sorted(ports),
-                        "window_seconds": window_seconds
+                        "unique_port_count": (
+                            len(ports)
+                        ),
+                        "ports": sorted(
+                            ports
+                        ),
+                        "window_seconds": (
+                            window_seconds
+                        )
                     },
 
                     tactic="Reconnaissance",
-                    technique="Network Service Scanning",
+
+                    technique=(
+                        "Network Service Scanning"
+                    ),
+
                     technique_id="T1046"
                 )
 
-                alerts.append(alert)
+                alerts.append(
+                    alert
+                )
 
-                # Prevent duplicate alerts for the same scan
+                # Prevent duplicate alerts
+                # for the same scan within
+                # this detection run.
                 break
 
     return alerts

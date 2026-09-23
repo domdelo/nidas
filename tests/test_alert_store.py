@@ -129,3 +129,69 @@ def test_save_live_alert_source(tmp_path):
         alerts[0]["alert_source"]
         == "Live"
     )
+def test_same_rule_alerts_are_stored_separately(
+    tmp_path
+):
+    from datetime import datetime
+
+    from models.alert import SecurityAlert
+
+    db_path = (
+        tmp_path
+        / "test_alerts.db"
+    )
+
+    first_alert = SecurityAlert(
+        timestamp=datetime.now(),
+        rule_id="NET-001",
+        rule_name="Port Scan Detected",
+        severity="medium",
+        source_ip="192.168.1.50",
+        destination_ip="192.168.1.100",
+        protocol="TCP"
+    )
+
+    second_alert = SecurityAlert(
+        timestamp=datetime.now(),
+        rule_id="NET-001",
+        rule_name="Port Scan Detected",
+        severity="medium",
+        source_ip="192.168.1.50",
+        destination_ip="192.168.1.100",
+        protocol="TCP"
+    )
+
+    save_alerts(
+        [
+            first_alert,
+            second_alert
+        ],
+        db_path,
+        alert_source="Live"
+    )
+
+    stored_alerts = get_alerts(
+        db_path
+    )
+
+    assert len(stored_alerts) == 2
+
+    assert (
+        first_alert.alert_id
+        != second_alert.alert_id
+    )
+
+    stored_ids = [
+        alert["alert_id"]
+        for alert in stored_alerts
+    ]
+
+    assert (
+        first_alert.alert_id
+        in stored_ids
+    )
+
+    assert (
+        second_alert.alert_id
+        in stored_ids
+    )

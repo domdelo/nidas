@@ -1,17 +1,25 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
+
+
+def generate_alert_id():
+    return str(uuid4())
 
 
 @dataclass
 class SecurityAlert:
-    alert_id: str
     timestamp: datetime
 
     rule_id: str
     rule_name: str
 
     severity: str
+
+    alert_id: str = field(
+        default_factory=generate_alert_id
+    )
 
     source_ip: str | None = None
     destination_ip: str | None = None
@@ -20,7 +28,9 @@ class SecurityAlert:
 
     description: str = ""
 
-    evidence: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(
+        default_factory=dict
+    )
 
     tactic: str | None = None
     technique: str | None = None

@@ -15,6 +15,7 @@ def detect_syn_floods(
 
     # Collect SYN packets that are not SYN-ACK packets
     for packet in packets:
+
         if packet.protocol != "TCP":
             continue
 
@@ -40,63 +41,103 @@ def detect_syn_floods(
             packet.destination_ip
         )
 
-        connections[key].append(packet)
+        connections[key].append(
+            packet
+        )
 
     # Analyze each source/destination pair
-    for (source_ip, destination_ip), group in connections.items():
+    for (
+        source_ip,
+        destination_ip
+    ), group in connections.items():
 
-        group.sort(key=lambda packet: packet.timestamp)
+        group.sort(
+            key=lambda packet: packet.timestamp
+        )
 
-        for start_index in range(len(group)):
-            start_time = group[start_index].timestamp
+        for start_index in range(
+            len(group)
+        ):
+
+            start_time = (
+                group[
+                    start_index
+                ].timestamp
+            )
 
             syn_count = 0
 
-            for packet in group[start_index:]:
+            for packet in group[
+                start_index:
+            ]:
 
                 time_difference = (
-                    packet.timestamp - start_time
+                    packet.timestamp
+                    - start_time
                 )
 
-                if time_difference > timedelta(seconds=window_seconds):
+                if (
+                    time_difference
+                    > timedelta(
+                        seconds=window_seconds
+                    )
+                ):
+
                     break
 
                 syn_count += 1
 
-            if syn_count >= syn_threshold:
+            if (
+                syn_count
+                >= syn_threshold
+            ):
 
                 alert = SecurityAlert(
-                    alert_id=f"SYNFLOOD-{len(alerts) + 1:04d}",
                     timestamp=start_time,
 
                     rule_id="DOS-001",
-                    rule_name="Possible SYN Flood Detected",
+                    rule_name=(
+                        "Possible SYN Flood Detected"
+                    ),
 
                     severity="high",
 
                     source_ip=source_ip,
-                    destination_ip=destination_ip,
+                    destination_ip=(
+                        destination_ip
+                    ),
 
                     protocol="TCP",
 
                     description=(
-                        f"{source_ip} sent {syn_count} TCP SYN packets "
+                        f"{source_ip} sent "
+                        f"{syn_count} TCP SYN packets "
                         f"to {destination_ip} within "
                         f"{window_seconds} seconds."
                     ),
 
                     evidence={
                         "syn_count": syn_count,
-                        "window_seconds": window_seconds
+                        "window_seconds": (
+                            window_seconds
+                        )
                     },
 
                     tactic="Impact",
-                    technique="Network Denial of Service",
+
+                    technique=(
+                        "Network Denial of Service"
+                    ),
+
                     technique_id="T1498"
                 )
 
-                alerts.append(alert)
+                alerts.append(
+                    alert
+                )
 
+                # Prevent duplicate alerts
+                # during this detection run.
                 break
 
     return alerts

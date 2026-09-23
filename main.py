@@ -18,6 +18,7 @@ from storage.alert_store import save_alerts
 
 
 def print_alert(alert):
+
     print(
         f"[{alert.severity.upper()}] "
         f"{alert.rule_name}"
@@ -47,6 +48,10 @@ def print_alert(alert):
 
     print()
 
+
+# --------------------------------------------------
+# PCAP analysis
+# --------------------------------------------------
 
 def run_pcap_analysis(file_path):
 
@@ -87,23 +92,63 @@ def run_pcap_analysis(file_path):
     print()
 
     for alert in alerts:
-        print_alert(alert)
 
+        print_alert(
+            alert
+        )
+
+
+# --------------------------------------------------
+# Live monitoring
+# --------------------------------------------------
 
 def run_live_monitor(interface):
 
     packet_buffer = []
     buffer_lock = Lock()
 
+    # Keep the most recent 60 seconds
+    # of packets for correlation.
     detection_window_seconds = 60
+
+    # Run detection every 10 seconds.
     analysis_interval_seconds = 10
 
-    seen_alerts = set()
+    # Allow the same alert fingerprint
+    # to trigger again after 60 seconds.
+    alert_cooldown_seconds = 60
+
+    # Stores:
+    #
+    # fingerprint -> last alert time
+    #
+    # Example:
+    #
+    # (
+    #     "NET-001",
+    #     "192.168.1.50",
+    #     "192.168.1.100"
+    # ) -> datetime
+    #
+    alert_history = {}
+
+
+    # ----------------------------------------------
+    # Packet callback
+    # ----------------------------------------------
 
     def receive_packet(packet):
 
         with buffer_lock:
-            packet_buffer.append(packet)
+
+            packet_buffer.append(
+                packet
+            )
+
+
+    # ----------------------------------------------
+    # Startup information
+    # ----------------------------------------------
 
     print()
 
@@ -134,26 +179,42 @@ def run_live_monitor(interface):
     )
 
     print(
+        f"Alert cooldown: "
+        f"{alert_cooldown_seconds} seconds"
+    )
+
+    print(
         "Press Control+C to stop."
     )
 
     print()
+
+
+    # ----------------------------------------------
+    # Start passive packet capture
+    # ----------------------------------------------
 
     sniffer = start_live_sniffer(
         interface,
         receive_packet
     )
 
+
     try:
 
         while True:
 
+            # Wait before running the next
+            # detection cycle.
             time.sleep(
                 analysis_interval_seconds
             )
 
-            # Keep only packets inside
-            # the rolling detection window
+
+            # --------------------------------------
+            # Maintain rolling packet window
+            # --------------------------------------
+
             with buffer_lock:
 
                 packet_buffer[:] = (
@@ -169,10 +230,12 @@ def run_live_monitor(interface):
                     packet_buffer
                 )
 
+
             print(
                 f"Packets in rolling window: "
                 f"{len(packets)}"
             )
+
 
             if not packets:
 
@@ -184,23 +247,38 @@ def run_live_monitor(interface):
 
                 continue
 
-            # Run all NIDAS detection rules
+
+            # --------------------------------------
+            # Run detection engine
+            # --------------------------------------
+
             alerts = run_detection(
                 packets
             )
 
-            # Remove alerts that have already
-            # been reported during this session
+
+            # --------------------------------------
+            # Apply alert cooldown
+            # --------------------------------------
+
             new_alerts = get_new_alerts(
                 alerts,
-                seen_alerts
+                alert_history,
+                cooldown_seconds=(
+                    alert_cooldown_seconds
+                )
             )
+
+
+            # --------------------------------------
+            # Store new alerts
+            # --------------------------------------
 
             if new_alerts:
 
                 save_alerts(
                     new_alerts,
-                    alert_source='Live'
+                    alert_source="Live"
                 )
 
                 print(
@@ -211,7 +289,10 @@ def run_live_monitor(interface):
                 print()
 
                 for alert in new_alerts:
-                    print_alert(alert)
+
+                    print_alert(
+                        alert
+                    )
 
             else:
 
@@ -219,7 +300,9 @@ def run_live_monitor(interface):
                     "No new threats detected."
                 )
 
+
             print()
+
 
     except KeyboardInterrupt:
 
@@ -230,15 +313,21 @@ def run_live_monitor(interface):
             "live monitoring..."
         )
 
+
     finally:
 
         if sniffer.running:
+
             sniffer.stop()
 
         print(
             "NIDAS live monitoring stopped."
         )
 
+
+# --------------------------------------------------
+# Command-line interface
+# --------------------------------------------------
 
 def main():
 
@@ -249,6 +338,7 @@ def main():
         )
     )
 
+
     parser.add_argument(
         "--pcap",
         type=str,
@@ -257,6 +347,7 @@ def main():
             "to analyze"
         )
     )
+
 
     parser.add_argument(
         "--live",
@@ -267,6 +358,7 @@ def main():
         )
     )
 
+
     parser.add_argument(
         "--interface",
         type=str,
@@ -276,13 +368,24 @@ def main():
         )
     )
 
+
     args = parser.parse_args()
+
+
+    # ----------------------------------------------
+    # PCAP mode
+    # ----------------------------------------------
 
     if args.pcap:
 
         run_pcap_analysis(
             args.pcap
         )
+
+
+    # ----------------------------------------------
+    # Live mode
+    # ----------------------------------------------
 
     elif args.live:
 
@@ -296,6 +399,11 @@ def main():
         run_live_monitor(
             args.interface
         )
+
+
+    # ----------------------------------------------
+    # No mode selected
+    # ----------------------------------------------
 
     else:
 

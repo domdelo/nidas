@@ -29,7 +29,10 @@ def detect_icmp_tunneling(
         if packet.icmp_payload_size is None:
             continue
 
-        if packet.icmp_payload_size < payload_threshold:
+        if (
+            packet.icmp_payload_size
+            < payload_threshold
+        ):
             continue
 
         key = (
@@ -37,83 +40,132 @@ def detect_icmp_tunneling(
             packet.destination_ip
         )
 
-        icmp_by_source[key].append(packet)
+        icmp_by_source[key].append(
+            packet
+        )
 
     # Analyze ICMP activity over time
-    for (source_ip, destination_ip), group in icmp_by_source.items():
+    for (
+        source_ip,
+        destination_ip
+    ), group in icmp_by_source.items():
 
         group.sort(
             key=lambda packet: packet.timestamp
         )
 
-        for start_index in range(len(group)):
+        for start_index in range(
+            len(group)
+        ):
 
-            start_time = group[start_index].timestamp
+            start_time = (
+                group[
+                    start_index
+                ].timestamp
+            )
 
             suspicious_packets = []
 
-            for packet in group[start_index:]:
+            for packet in group[
+                start_index:
+            ]:
 
                 difference = (
-                    packet.timestamp - start_time
+                    packet.timestamp
+                    - start_time
                 )
 
-                if difference > timedelta(
-                    seconds=window_seconds
+                if (
+                    difference
+                    > timedelta(
+                        seconds=window_seconds
+                    )
                 ):
                     break
 
-                suspicious_packets.append(packet)
+                suspicious_packets.append(
+                    packet
+                )
 
-            if len(suspicious_packets) >= packet_threshold:
+            if (
+                len(suspicious_packets)
+                >= packet_threshold
+            ):
 
                 payload_sizes = [
                     packet.icmp_payload_size
-                    for packet in suspicious_packets
+                    for packet
+                    in suspicious_packets
                 ]
 
                 average_payload_size = (
-                    sum(payload_sizes) / len(payload_sizes)
+                    sum(payload_sizes)
+                    / len(payload_sizes)
                 )
 
                 alert = SecurityAlert(
-                    alert_id=f"ICMPTUNNEL-{len(alerts) + 1:04d}",
                     timestamp=start_time,
 
                     rule_id="ICMP-001",
-                    rule_name="Possible ICMP Tunneling",
+                    rule_name=(
+                        "Possible ICMP Tunneling"
+                    ),
 
                     severity="high",
 
                     source_ip=source_ip,
-                    destination_ip=destination_ip,
+                    destination_ip=(
+                        destination_ip
+                    ),
 
                     protocol="ICMP",
 
                     description=(
                         f"{source_ip} sent "
-                        f"{len(suspicious_packets)} large ICMP packets "
-                        f"to {destination_ip} within "
+                        f"{len(suspicious_packets)} "
+                        f"large ICMP packets to "
+                        f"{destination_ip} within "
                         f"{window_seconds} seconds."
                     ),
 
                     evidence={
-                        "packet_count": len(suspicious_packets),
-                        "average_payload_size": round(
-                            average_payload_size,
-                            2
+                        "packet_count": (
+                            len(
+                                suspicious_packets
+                            )
                         ),
-                        "payload_threshold": payload_threshold,
-                        "window_seconds": window_seconds
+                        "average_payload_size": (
+                            round(
+                                average_payload_size,
+                                2
+                            )
+                        ),
+                        "payload_threshold": (
+                            payload_threshold
+                        ),
+                        "window_seconds": (
+                            window_seconds
+                        )
                     },
 
-                    tactic="Command and Control",
-                    technique="Non-Application Layer Protocol",
+                    tactic=(
+                        "Command and Control"
+                    ),
+
+                    technique=(
+                        "Non-Application "
+                        "Layer Protocol"
+                    ),
+
                     technique_id="T1095"
                 )
 
-                alerts.append(alert)
+                alerts.append(
+                    alert
+                )
 
+                # Prevent duplicate alerts
+                # during this detection run.
                 break
 
     return alerts

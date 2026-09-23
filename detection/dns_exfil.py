@@ -35,13 +35,17 @@ def detect_dns_exfiltration(
 
     # Only keep packets containing DNS queries
     for packet in packets:
+
         if packet.dns_query is None:
             continue
 
         if packet.source_ip is None:
             continue
 
-        dns_packets.append(packet)
+        dns_packets.append(
+            packet
+        )
+
 
     # --------------------------------------------------
     # Analyze individual DNS queries
@@ -56,100 +60,195 @@ def detect_dns_exfiltration(
         labels = query.split(".")
 
         if labels:
-            longest_label = max(len(label) for label in labels)
+
+            longest_label = max(
+                len(label)
+                for label in labels
+            )
+
         else:
+
             longest_label = 0
 
-        entropy = calculate_entropy(query)
+
+        entropy = calculate_entropy(
+            query
+        )
 
         indicators = []
 
-        if len(query) >= query_length_threshold:
-            indicators.append("long_query")
 
-        if longest_label >= label_length_threshold:
-            indicators.append("long_label")
+        if (
+            len(query)
+            >= query_length_threshold
+        ):
 
-        if entropy >= entropy_threshold:
-            indicators.append("high_entropy")
+            indicators.append(
+                "long_query"
+            )
+
+
+        if (
+            longest_label
+            >= label_length_threshold
+        ):
+
+            indicators.append(
+                "long_label"
+            )
+
+
+        if (
+            entropy
+            >= entropy_threshold
+        ):
+
+            indicators.append(
+                "high_entropy"
+            )
+
 
         # Require multiple suspicious characteristics
         if len(indicators) >= 2:
 
             alert = SecurityAlert(
-                alert_id=f"DNSEXFIL-{len(alerts) + 1:04d}",
                 timestamp=packet.timestamp,
 
                 rule_id="DNS-001",
-                rule_name="Possible DNS Exfiltration",
+                rule_name=(
+                    "Possible DNS Exfiltration"
+                ),
 
                 severity="high",
 
-                source_ip=packet.source_ip,
-                destination_ip=packet.destination_ip,
+                source_ip=(
+                    packet.source_ip
+                ),
+
+                destination_ip=(
+                    packet.destination_ip
+                ),
 
                 protocol="DNS",
 
                 description=(
                     f"Suspicious DNS query from "
-                    f"{packet.source_ip}: {query}"
+                    f"{packet.source_ip}: "
+                    f"{query}"
                 ),
 
                 evidence={
                     "query": query,
-                    "query_length": len(query),
-                    "longest_label": longest_label,
-                    "entropy": round(entropy, 2),
+                    "query_length": (
+                        len(query)
+                    ),
+                    "longest_label": (
+                        longest_label
+                    ),
+                    "entropy": round(
+                        entropy,
+                        2
+                    ),
                     "indicators": indicators
                 },
 
                 tactic="Exfiltration",
-                technique="Exfiltration Over Alternative Protocol",
+
+                technique=(
+                    "Exfiltration Over "
+                    "Alternative Protocol"
+                ),
+
                 technique_id="T1048"
             )
 
-            alerts.append(alert)
-            alerted_sources.add(packet.source_ip)
+            alerts.append(
+                alert
+            )
+
+            alerted_sources.add(
+                packet.source_ip
+            )
+
 
     # --------------------------------------------------
     # Analyze DNS query frequency
     # --------------------------------------------------
 
-    queries_by_source = defaultdict(list)
+    queries_by_source = defaultdict(
+        list
+    )
 
     for packet in dns_packets:
-        queries_by_source[packet.source_ip].append(packet)
 
-    for source_ip, group in queries_by_source.items():
+        queries_by_source[
+            packet.source_ip
+        ].append(
+            packet
+        )
+
+
+    for (
+        source_ip,
+        group
+    ) in queries_by_source.items():
 
         if source_ip in alerted_sources:
             continue
 
-        group.sort(key=lambda packet: packet.timestamp)
 
-        for start_index in range(len(group)):
+        group.sort(
+            key=lambda packet: packet.timestamp
+        )
 
-            start_time = group[start_index].timestamp
+
+        for start_index in range(
+            len(group)
+        ):
+
+            start_time = (
+                group[
+                    start_index
+                ].timestamp
+            )
 
             query_count = 0
 
-            for packet in group[start_index:]:
 
-                difference = packet.timestamp - start_time
+            for packet in group[
+                start_index:
+            ]:
 
-                if difference > timedelta(seconds=window_seconds):
+                difference = (
+                    packet.timestamp
+                    - start_time
+                )
+
+                if (
+                    difference
+                    > timedelta(
+                        seconds=window_seconds
+                    )
+                ):
+
                     break
 
                 query_count += 1
 
-            if query_count >= query_count_threshold:
+
+            if (
+                query_count
+                >= query_count_threshold
+            ):
 
                 alert = SecurityAlert(
-                    alert_id=f"DNSEXFIL-{len(alerts) + 1:04d}",
                     timestamp=start_time,
 
                     rule_id="DNS-001",
-                    rule_name="Possible DNS Exfiltration",
+
+                    rule_name=(
+                        "Possible DNS Exfiltration"
+                    ),
 
                     severity="medium",
 
@@ -159,22 +258,36 @@ def detect_dns_exfiltration(
 
                     description=(
                         f"{source_ip} generated "
-                        f"{query_count} DNS queries within "
-                        f"{window_seconds} seconds."
+                        f"{query_count} DNS queries "
+                        f"within {window_seconds} "
+                        f"seconds."
                     ),
 
                     evidence={
-                        "query_count": query_count,
-                        "window_seconds": window_seconds,
-                        "indicator": "high_query_frequency"
+                        "query_count": (
+                            query_count
+                        ),
+                        "window_seconds": (
+                            window_seconds
+                        ),
+                        "indicator": (
+                            "high_query_frequency"
+                        )
                     },
 
                     tactic="Exfiltration",
-                    technique="Exfiltration Over Alternative Protocol",
+
+                    technique=(
+                        "Exfiltration Over "
+                        "Alternative Protocol"
+                    ),
+
                     technique_id="T1048"
                 )
 
-                alerts.append(alert)
+                alerts.append(
+                    alert
+                )
 
                 break
 
