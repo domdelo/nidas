@@ -1,27 +1,34 @@
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 
-# NIDAS project root
+# --------------------------------------------------
+# Project setup
+# --------------------------------------------------
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Allow imports from the project root
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from storage.alert_store import get_alerts, update_alert_status
+from storage.alert_store import (
+    get_alerts,
+    update_alert_status
+)
 
 
 DATABASE_PATH = PROJECT_ROOT / "data" / "nidas.db"
 
 
-DATABASE_PATH = Path("data/nidas.db")
-
+# --------------------------------------------------
+# Page configuration
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="NIDAS Security Dashboard",
@@ -31,7 +38,9 @@ st.set_page_config(
 
 
 st.title("NIDAS")
-st.subheader("Network Intrusion Detection & Alert System")
+st.subheader(
+    "Network Intrusion Detection & Alert System"
+)
 
 st.caption(
     "Security monitoring dashboard for network-based "
@@ -40,214 +49,324 @@ st.caption(
 
 
 # --------------------------------------------------
-# Load alerts
+# Dashboard controls
 # --------------------------------------------------
 
-alerts = get_alerts(DATABASE_PATH)
+control1, control2 = st.columns(
+    [1, 3]
+)
 
-if not alerts:
-    st.info(
-        "No security alerts are currently stored."
+
+with control1:
+
+    auto_refresh = st.toggle(
+        "Live Refresh",
+        value=False
     )
-    st.stop()
 
 
-df = pd.DataFrame(alerts)
+with control2:
 
-df["timestamp"] = pd.to_datetime(
-    df["timestamp"]
-)
+    if auto_refresh:
 
+        st.success(
+            "Live dashboard refresh enabled"
+        )
 
-# --------------------------------------------------
-# Sidebar filters
-# --------------------------------------------------
+    else:
 
-st.sidebar.header("Alert Filters")
-
-
-severity_options = sorted(
-    df["severity"].dropna().unique()
-)
-
-selected_severities = st.sidebar.multiselect(
-    "Severity",
-    severity_options,
-    default=severity_options
-)
-
-
-rule_options = sorted(
-    df["rule_name"].dropna().unique()
-)
-
-selected_rules = st.sidebar.multiselect(
-    "Detection Rule",
-    rule_options,
-    default=rule_options
-)
-
-
-source_options = sorted(
-    df["source_ip"].dropna().unique()
-)
-
-selected_sources = st.sidebar.multiselect(
-    "Source IP",
-    source_options,
-    default=source_options
-)
-
-
-filtered_df = df[
-    df["severity"].isin(selected_severities)
-    & df["rule_name"].isin(selected_rules)
-    & df["source_ip"].isin(selected_sources)
-]
+        st.info(
+            "Live dashboard refresh disabled"
+        )
 
 
 # --------------------------------------------------
-# Metrics
+# Main monitoring dashboard
 # --------------------------------------------------
 
-total_alerts = len(filtered_df)
+@st.fragment(
+    run_every=5 if auto_refresh else None
+)
+def monitoring_dashboard():
 
-high_alerts = len(
-    filtered_df[
-        filtered_df["severity"] == "high"
+    # ----------------------------------------------
+    # Load alerts
+    # ----------------------------------------------
+
+    alerts = get_alerts(
+        DATABASE_PATH
+    )
+
+    refresh_time = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    st.caption(
+        f"Last dashboard refresh: "
+        f"{refresh_time}"
+    )
+
+
+    if not alerts:
+
+        st.info(
+            "No security alerts are "
+            "currently stored."
+        )
+
+        return
+
+
+    df = pd.DataFrame(
+        alerts
+    )
+
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"]
+    )
+
+
+    # ----------------------------------------------
+    # Sidebar filters
+    # ----------------------------------------------
+
+    st.sidebar.header(
+        "Alert Filters"
+    )
+
+
+    severity_options = sorted(
+        df["severity"]
+        .dropna()
+        .unique()
+    )
+
+    selected_severities = (
+        st.sidebar.multiselect(
+            "Severity",
+            severity_options,
+            default=severity_options,
+            key="severity_filter"
+        )
+    )
+
+
+    rule_options = sorted(
+        df["rule_name"]
+        .dropna()
+        .unique()
+    )
+
+    selected_rules = (
+        st.sidebar.multiselect(
+            "Detection Rule",
+            rule_options,
+            default=rule_options,
+            key="rule_filter"
+        )
+    )
+
+
+    source_options = sorted(
+        df["source_ip"]
+        .dropna()
+        .unique()
+    )
+
+    selected_sources = (
+        st.sidebar.multiselect(
+            "Source IP",
+            source_options,
+            default=source_options,
+            key="source_filter"
+        )
+    )
+
+
+    filtered_df = df[
+        df["severity"].isin(
+            selected_severities
+        )
+        & df["rule_name"].isin(
+            selected_rules
+        )
+        & df["source_ip"].isin(
+            selected_sources
+        )
     ]
-)
-
-medium_alerts = len(
-    filtered_df[
-        filtered_df["severity"] == "medium"
-    ]
-)
-
-unique_sources = (
-    filtered_df["source_ip"]
-    .dropna()
-    .nunique()
-)
 
 
-metric1, metric2, metric3, metric4 = st.columns(4)
+    # ----------------------------------------------
+    # Metrics
+    # ----------------------------------------------
 
-metric1.metric(
-    "Total Alerts",
-    total_alerts
-)
-
-metric2.metric(
-    "High Severity",
-    high_alerts
-)
-
-metric3.metric(
-    "Medium Severity",
-    medium_alerts
-)
-
-metric4.metric(
-    "Unique Sources",
-    unique_sources
-)
+    total_alerts = len(
+        filtered_df
+    )
 
 
-st.divider()
+    high_alerts = len(
+        filtered_df[
+            filtered_df["severity"]
+            == "high"
+        ]
+    )
 
 
-# --------------------------------------------------
-# Charts
-# --------------------------------------------------
+    medium_alerts = len(
+        filtered_df[
+            filtered_df["severity"]
+            == "medium"
+        ]
+    )
 
-chart1, chart2 = st.columns(2)
+
+    unique_sources = (
+        filtered_df["source_ip"]
+        .dropna()
+        .nunique()
+    )
 
 
-with chart1:
+    metric1, metric2, metric3, metric4 = (
+        st.columns(4)
+    )
+
+
+    metric1.metric(
+        "Total Alerts",
+        total_alerts
+    )
+
+
+    metric2.metric(
+        "High Severity",
+        high_alerts
+    )
+
+
+    metric3.metric(
+        "Medium Severity",
+        medium_alerts
+    )
+
+
+    metric4.metric(
+        "Unique Sources",
+        unique_sources
+    )
+
+
+    st.divider()
+
+
+    # ----------------------------------------------
+    # Charts
+    # ----------------------------------------------
+
+    chart1, chart2 = st.columns(
+        2
+    )
+
+
+    with chart1:
+
+        st.subheader(
+            "Alerts by Severity"
+        )
+
+        severity_counts = (
+            filtered_df["severity"]
+            .value_counts()
+        )
+
+        st.bar_chart(
+            severity_counts
+        )
+
+
+    with chart2:
+
+        st.subheader(
+            "Alerts by Detection"
+        )
+
+        rule_counts = (
+            filtered_df["rule_name"]
+            .value_counts()
+        )
+
+        st.bar_chart(
+            rule_counts
+        )
+
+
+    st.divider()
+
+
+    # ----------------------------------------------
+    # Alert table
+    # ----------------------------------------------
 
     st.subheader(
-        "Alerts by Severity"
-    )
-
-    severity_counts = (
-        filtered_df["severity"]
-        .value_counts()
-    )
-
-    st.bar_chart(
-        severity_counts
+        "Security Alerts"
     )
 
 
-with chart2:
+    if filtered_df.empty:
+
+        st.info(
+            "No alerts match the "
+            "selected filters."
+        )
+
+    else:
+
+        display_columns = [
+            "timestamp",
+            "severity",
+            "status",
+            "rule_id",
+            "rule_name",
+            "source_ip",
+            "destination_ip",
+            "protocol"
+        ]
+
+
+        st.dataframe(
+            filtered_df[
+                display_columns
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+
+
+    st.divider()
+
+
+    # ----------------------------------------------
+    # Analyst triage
+    # ----------------------------------------------
 
     st.subheader(
-        "Alerts by Detection"
-    )
-
-    rule_counts = (
-        filtered_df["rule_name"]
-        .value_counts()
-    )
-
-    st.bar_chart(
-        rule_counts
+        "Alert Investigation"
     )
 
 
-st.divider()
+    if filtered_df.empty:
 
+        st.info(
+            "Select different filters "
+            "to investigate alerts."
+        )
 
-# --------------------------------------------------
-# Alert table
-# --------------------------------------------------
+        return
 
-st.subheader(
-    "Security Alerts"
-)
-
-
-display_columns = [
-    "timestamp",
-    "severity",
-    "status",
-    "rule_id",
-    "rule_name",
-    "source_ip",
-    "destination_ip",
-    "protocol"
-]
-
-
-st.dataframe(
-    filtered_df[display_columns],
-    use_container_width=True,
-    hide_index=True
-)
-
-
-st.divider()
-
-
-# --------------------------------------------------
-# Analyst triage
-# --------------------------------------------------
-
-st.subheader(
-    "Alert Investigation"
-)
-
-
-if filtered_df.empty:
-
-    st.info(
-        "No alerts match the selected filters."
-    )
-
-else:
 
     alert_choices = {}
+
 
     for _, row in filtered_df.iterrows():
 
@@ -258,43 +377,62 @@ else:
             f"{row['source_ip']}"
         )
 
-        alert_choices[label] = row
+        alert_choices[
+            label
+        ] = row
 
 
-    selected_alert_label = st.selectbox(
-        "Select an alert",
-        list(alert_choices.keys())
+    selected_alert_label = (
+        st.selectbox(
+            "Select an alert",
+            list(
+                alert_choices.keys()
+            ),
+            key="alert_selection"
+        )
     )
 
 
-    selected_alert = alert_choices[
-        selected_alert_label
-    ]
+    selected_alert = (
+        alert_choices[
+            selected_alert_label
+        ]
+    )
 
 
-    detail1, detail2 = st.columns(2)
+    detail1, detail2 = st.columns(
+        2
+    )
 
 
     with detail1:
 
         st.write(
             "**Alert ID:**",
-            selected_alert["alert_id"]
+            selected_alert[
+                "alert_id"
+            ]
         )
 
         st.write(
             "**Rule:**",
-            selected_alert["rule_id"]
+            selected_alert[
+                "rule_id"
+            ]
         )
 
         st.write(
             "**Severity:**",
-            selected_alert["severity"].upper()
+            selected_alert[
+                "severity"
+            ].upper()
         )
 
         st.write(
             "**Protocol:**",
-            selected_alert["protocol"]
+            selected_alert[
+                "protocol"
+            ]
         )
 
 
@@ -302,22 +440,30 @@ else:
 
         st.write(
             "**Source IP:**",
-            selected_alert["source_ip"]
+            selected_alert[
+                "source_ip"
+            ]
         )
 
         st.write(
             "**Destination IP:**",
-            selected_alert["destination_ip"]
+            selected_alert[
+                "destination_ip"
+            ]
         )
 
         st.write(
             "**Tactic:**",
-            selected_alert["tactic"]
+            selected_alert[
+                "tactic"
+            ]
         )
 
         st.write(
             "**Technique:**",
-            selected_alert["technique"]
+            selected_alert[
+                "technique"
+            ]
         )
 
 
@@ -326,57 +472,139 @@ else:
     )
 
     st.write(
-        selected_alert["description"]
+        selected_alert[
+            "description"
+        ]
     )
 
+
+    # ----------------------------------------------
+    # Detection evidence
+    # ----------------------------------------------
 
     st.write(
         "**Detection Evidence:**"
     )
 
-    evidence = selected_alert["evidence"]
 
-    if isinstance(evidence, str):
+    evidence = selected_alert[
+        "evidence"
+    ]
+
+
+    if isinstance(
+        evidence,
+        str
+    ):
 
         try:
+
             evidence = json.loads(
                 evidence
             )
 
         except json.JSONDecodeError:
+
             pass
 
 
-    st.write("**Analyst Status:**")
+    if isinstance(
+        evidence,
+        dict
+    ):
 
-status_options = [
-    "New",
-    "Investigating",
-    "Resolved"
-]
+        st.json(
+            evidence
+        )
 
-current_status = selected_alert["status"]
+    else:
 
-current_index = status_options.index(
-    current_status
-)
+        st.write(
+            evidence
+        )
 
-new_status = st.selectbox(
-    "Update status",
-    status_options,
-    index=current_index
-)
 
-if st.button("Save Status"):
+    # ----------------------------------------------
+    # Analyst status
+    # ----------------------------------------------
 
-    update_alert_status(
-        selected_alert["alert_id"],
-        new_status,
-        DATABASE_PATH
+    st.divider()
+
+    st.write(
+        "**Analyst Status:**"
     )
 
-    st.success(
-        f"Alert status updated to {new_status}."
+
+    status_options = [
+        "New",
+        "Investigating",
+        "Resolved"
+    ]
+
+
+    current_status = (
+        selected_alert[
+            "status"
+        ]
     )
 
-    st.rerun()
+
+    if (
+        current_status
+        not in status_options
+    ):
+
+        current_status = "New"
+
+
+    current_index = (
+        status_options.index(
+            current_status
+        )
+    )
+
+
+    new_status = (
+        st.selectbox(
+            "Update status",
+            status_options,
+            index=current_index,
+            key=(
+                "status_"
+                + selected_alert[
+                    "alert_id"
+                ]
+            )
+        )
+    )
+
+
+    if st.button(
+        "Save Status",
+        key=(
+            "save_"
+            + selected_alert[
+                "alert_id"
+            ]
+        )
+    ):
+
+        update_alert_status(
+            selected_alert[
+                "alert_id"
+            ],
+            new_status,
+            DATABASE_PATH
+        )
+
+
+        st.success(
+            f"Alert status updated "
+            f"to {new_status}."
+        )
+
+
+        st.rerun()
+
+
+monitoring_dashboard()
