@@ -2,6 +2,7 @@ import argparse
 
 from capture.sniffer import read_pcap
 from detection.engine import run_detection
+from storage.alert_store import save_alerts
 
 
 def main():
@@ -21,6 +22,7 @@ def main():
         packets = read_pcap(args.pcap)
 
         alerts = run_detection(packets)
+        save_alerts(alerts)
 
         print("\nNIDAS - Network Intrusion Detection & Alert System")
         print("-----------------------------------------------")
