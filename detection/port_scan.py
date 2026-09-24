@@ -138,10 +138,10 @@ def detect_port_scans(
                         )
                     },
 
-                    tactic="Reconnaissance",
+                    tactic="Discovery",
 
                     technique=(
-                        "Network Service Scanning"
+                        "Network Service Discovery"
                     ),
 
                     technique_id="T1046"
