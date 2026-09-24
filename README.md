@@ -583,9 +583,6 @@ Potential future extensions include:
 
 ## Screenshots
 
-Add screenshots of the finished project here.
-
-Suggested screenshots:
 
 ### SOC Dashboard
 
