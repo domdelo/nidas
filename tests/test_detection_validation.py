@@ -328,6 +328,8 @@ def test_icmp_tunneling_triggers_correct_rule():
     assert rule_ids == [
         "ICMP-001"
     ]
+
+
 def test_port_scan_below_threshold_no_alert():
 
     start_time = datetime.now()
@@ -390,6 +392,8 @@ def test_port_scan_outside_window_no_alert():
     )
 
     assert len(alerts) == 0
+
+
 def test_syn_flood_below_threshold_no_alert():
 
     start_time = datetime.now()
@@ -452,6 +456,8 @@ def test_syn_flood_outside_window_no_alert():
     )
 
     assert len(alerts) == 0
+
+
 def test_dns_frequency_below_threshold_no_alert():
 
     start_time = datetime.now()
@@ -536,7 +542,9 @@ def test_dns_frequency_outside_window_no_alert():
         packet = NetworkPacket(
             timestamp=(
                 start_time
-                + timedelta(seconds=4 * i)
+                + timedelta(
+                    seconds=4 * i
+                )
             ),
             source_ip="192.168.1.182",
             destination_ip="8.8.8.8",
@@ -556,6 +564,51 @@ def test_dns_frequency_outside_window_no_alert():
     )
 
     assert len(alerts) == 0
+
+
+def test_established_tcp_traffic_not_port_scan():
+
+    start_time = datetime.now()
+
+    packets = []
+
+    # Touch many destination ports, but simulate
+    # established TCP traffic rather than new
+    # connection attempts.
+    for i in range(25):
+
+        packet = NetworkPacket(
+            timestamp=(
+                start_time
+                + timedelta(
+                    milliseconds=100 * i
+                )
+            ),
+            source_ip="192.168.1.200",
+            destination_ip="192.168.1.210",
+            protocol="TCP",
+            source_port=50000 + i,
+            destination_port=2000 + i,
+            tcp_flags="PA",
+            packet_size=100
+        )
+
+        packets.append(
+            packet
+        )
+
+    alerts = run_detection(
+        packets
+    )
+
+    rule_ids = [
+        alert.rule_id
+        for alert in alerts
+    ]
+
+    assert "NET-001" not in rule_ids
+
+
 def test_icmp_below_threshold_no_alert():
 
     start_time = datetime.now()
@@ -598,7 +651,9 @@ def test_icmp_outside_window_no_alert():
         packet = NetworkPacket(
             timestamp=(
                 start_time
-                + timedelta(seconds=4 * i)
+                + timedelta(
+                    seconds=4 * i
+                )
             ),
             source_ip="192.168.1.191",
             destination_ip="192.168.1.221",
@@ -616,3 +671,159 @@ def test_icmp_outside_window_no_alert():
     )
 
     assert len(alerts) == 0
+
+
+def test_syn_ack_traffic_not_syn_flood():
+
+    start_time = datetime.now()
+
+    packets = []
+
+    # Large amount of SYN-ACK response traffic.
+    # This should not count as SYN flood activity.
+    for i in range(120):
+
+        packet = NetworkPacket(
+            timestamp=(
+                start_time
+                + timedelta(
+                    milliseconds=50 * i
+                )
+            ),
+            source_ip="192.168.1.210",
+            destination_ip="192.168.1.200",
+            protocol="TCP",
+            source_port=443,
+            destination_port=50000 + i,
+            tcp_flags="SA",
+            packet_size=60
+        )
+
+        packets.append(packet)
+
+    alerts = run_detection(
+        packets
+    )
+
+    rule_ids = [
+        alert.rule_id
+        for alert in alerts
+    ]
+
+    assert "DOS-001" not in rule_ids
+
+
+def test_established_tcp_traffic_not_syn_flood():
+
+    start_time = datetime.now()
+
+    packets = []
+
+    # High-volume established TCP traffic
+    # should not count as SYN flood activity.
+    for i in range(120):
+
+        packet = NetworkPacket(
+            timestamp=(
+                start_time
+                + timedelta(
+                    milliseconds=50 * i
+                )
+            ),
+            source_ip="192.168.1.220",
+            destination_ip="192.168.1.230",
+            protocol="TCP",
+            source_port=40000 + i,
+            destination_port=443,
+            tcp_flags="PA",
+            packet_size=100
+        )
+
+        packets.append(packet)
+
+    alerts = run_detection(
+        packets
+    )
+
+    rule_ids = [
+        alert.rule_id
+        for alert in alerts
+    ]
+
+    assert "DOS-001" not in rule_ids
+
+
+def test_repeated_normal_dns_queries_not_exfiltration():
+
+    start_time = datetime.now()
+
+    packets = []
+
+    # High DNS volume alone should not trigger
+    # DNS exfiltration detection.
+    for i in range(25):
+
+        packet = NetworkPacket(
+            timestamp=(
+                start_time
+                + timedelta(seconds=i)
+            ),
+            source_ip="192.168.1.230",
+            destination_ip="8.8.8.8",
+            protocol="UDP",
+            source_port=53000 + i,
+            destination_port=53,
+            packet_size=80,
+            dns_query="api.example.com"
+        )
+
+        packets.append(packet)
+
+    alerts = run_detection(
+        packets
+    )
+
+    rule_ids = [
+        alert.rule_id
+        for alert in alerts
+    ]
+
+    assert "DNS-001" not in rule_ids
+
+
+def test_icmp_error_messages_not_tunneling():
+
+    start_time = datetime.now()
+
+    packets = []
+
+    # Simulate repeated large ICMP error messages.
+    # These should not be treated as tunnel traffic.
+    for i in range(15):
+
+        packet = NetworkPacket(
+            timestamp=(
+                start_time
+                + timedelta(seconds=i)
+            ),
+            source_ip="192.168.1.240",
+            destination_ip="192.168.1.250",
+            protocol="ICMP",
+            packet_size=200,
+            icmp_type=3,
+            icmp_code=1,
+            icmp_payload_size=150
+        )
+
+        packets.append(packet)
+
+    alerts = run_detection(
+        packets
+    )
+
+    rule_ids = [
+        alert.rule_id
+        for alert in alerts
+    ]
+
+    assert "ICMP-001" not in rule_ids

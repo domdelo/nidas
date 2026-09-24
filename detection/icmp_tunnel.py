@@ -14,7 +14,7 @@ def detect_icmp_tunneling(
 
     icmp_by_source = defaultdict(list)
 
-    # Collect suspiciously large ICMP packets
+    # Collect suspiciously large ICMP Echo packets.
     for packet in packets:
 
         if packet.protocol != "ICMP":
@@ -24,6 +24,14 @@ def detect_icmp_tunneling(
             continue
 
         if packet.destination_ip is None:
+            continue
+
+        if packet.icmp_type is None:
+            continue
+
+        # Only analyze ICMP Echo Request and
+        # Echo Reply traffic for tunneling.
+        if packet.icmp_type not in (0, 8):
             continue
 
         if packet.icmp_payload_size is None:
@@ -44,7 +52,7 @@ def detect_icmp_tunneling(
             packet
         )
 
-    # Analyze ICMP activity over time
+    # Analyze ICMP activity over time.
     for (
         source_ip,
         destination_ip
@@ -123,7 +131,7 @@ def detect_icmp_tunneling(
                     description=(
                         f"{source_ip} sent "
                         f"{len(suspicious_packets)} "
-                        f"large ICMP packets to "
+                        f"large ICMP Echo packets to "
                         f"{destination_ip} within "
                         f"{window_seconds} seconds."
                     ),
@@ -145,6 +153,9 @@ def detect_icmp_tunneling(
                         ),
                         "window_seconds": (
                             window_seconds
+                        ),
+                        "icmp_types": (
+                            "Echo Request/Reply"
                         )
                     },
 

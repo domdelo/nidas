@@ -11,9 +11,9 @@ def detect_port_scans(
 ):
     alerts = []
 
-    # Group TCP packets by source and destination
     connections = defaultdict(list)
 
+    # Collect TCP connection attempts.
     for packet in packets:
 
         if packet.protocol != "TCP":
@@ -28,6 +28,19 @@ def detect_port_scans(
         if packet.destination_port is None:
             continue
 
+        if packet.tcp_flags is None:
+            continue
+
+        flags = packet.tcp_flags
+
+        # Only count SYN connection attempts.
+        if "S" not in flags:
+            continue
+
+        # Ignore SYN-ACK responses.
+        if "A" in flags:
+            continue
+
         key = (
             packet.source_ip,
             packet.destination_ip
@@ -37,8 +50,7 @@ def detect_port_scans(
             packet
         )
 
-
-    # Analyze each source/destination pair
+    # Analyze each source/destination pair.
     for (
         source_ip,
         destination_ip
@@ -75,13 +87,11 @@ def detect_port_scans(
                         seconds=window_seconds
                     )
                 ):
-
                     break
 
                 ports.add(
                     packet.destination_port
                 )
-
 
             if (
                 len(ports)
@@ -106,7 +116,8 @@ def detect_port_scans(
                     protocol="TCP",
 
                     description=(
-                        f"{source_ip} contacted "
+                        f"{source_ip} attempted "
+                        f"connections to "
                         f"{len(ports)} unique ports on "
                         f"{destination_ip} within "
                         f"{window_seconds} seconds."
@@ -121,6 +132,9 @@ def detect_port_scans(
                         ),
                         "window_seconds": (
                             window_seconds
+                        ),
+                        "tcp_pattern": (
+                            "SYN without ACK"
                         )
                     },
 
@@ -137,9 +151,6 @@ def detect_port_scans(
                     alert
                 )
 
-                # Prevent duplicate alerts
-                # for the same scan within
-                # this detection run.
                 break
 
     return alerts

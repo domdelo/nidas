@@ -16,7 +16,10 @@ def calculate_entropy(text):
 
     for count in counts.values():
         probability = count / length
-        entropy -= probability * math.log2(probability)
+        entropy -= (
+            probability
+            * math.log2(probability)
+        )
 
     return entropy
 
@@ -27,13 +30,14 @@ def detect_dns_exfiltration(
     label_length_threshold=40,
     entropy_threshold=4.0,
     query_count_threshold=20,
+    unique_label_ratio_threshold=0.75,
     window_seconds=60
 ):
     alerts = []
 
     dns_packets = []
 
-    # Only keep packets containing DNS queries
+    # Only keep packets containing DNS queries.
     for packet in packets:
 
         if packet.dns_query is None:
@@ -45,7 +49,6 @@ def detect_dns_exfiltration(
         dns_packets.append(
             packet
         )
-
 
     # --------------------------------------------------
     # Analyze individual DNS queries
@@ -67,9 +70,7 @@ def detect_dns_exfiltration(
             )
 
         else:
-
             longest_label = 0
-
 
         entropy = calculate_entropy(
             query
@@ -77,38 +78,31 @@ def detect_dns_exfiltration(
 
         indicators = []
 
-
         if (
             len(query)
             >= query_length_threshold
         ):
-
             indicators.append(
                 "long_query"
             )
-
 
         if (
             longest_label
             >= label_length_threshold
         ):
-
             indicators.append(
                 "long_label"
             )
-
 
         if (
             entropy
             >= entropy_threshold
         ):
-
             indicators.append(
                 "high_entropy"
             )
 
-
-        # Require multiple suspicious characteristics
+        # Require multiple suspicious characteristics.
         if len(indicators) >= 2:
 
             alert = SecurityAlert(
@@ -170,7 +164,6 @@ def detect_dns_exfiltration(
                 packet.source_ip
             )
 
-
     # --------------------------------------------------
     # Analyze DNS query frequency
     # --------------------------------------------------
@@ -187,7 +180,6 @@ def detect_dns_exfiltration(
             packet
         )
 
-
     for (
         source_ip,
         group
@@ -196,11 +188,9 @@ def detect_dns_exfiltration(
         if source_ip in alerted_sources:
             continue
 
-
         group.sort(
             key=lambda packet: packet.timestamp
         )
-
 
         for start_index in range(
             len(group)
@@ -212,8 +202,7 @@ def detect_dns_exfiltration(
                 ].timestamp
             )
 
-            query_count = 0
-
+            window_packets = []
 
             for packet in group[
                 start_index:
@@ -230,65 +219,110 @@ def detect_dns_exfiltration(
                         seconds=window_seconds
                     )
                 ):
-
                     break
 
-                query_count += 1
+                window_packets.append(
+                    packet
+                )
 
+            query_count = len(
+                window_packets
+            )
 
             if (
                 query_count
-                >= query_count_threshold
+                < query_count_threshold
             ):
+                continue
 
-                alert = SecurityAlert(
-                    timestamp=start_time,
+            unique_labels = set()
 
-                    rule_id="DNS-001",
+            for packet in window_packets:
 
-                    rule_name=(
-                        "Possible DNS Exfiltration"
+                query = packet.dns_query
+
+                labels = query.split(".")
+
+                if labels:
+                    unique_labels.add(
+                        labels[0]
+                    )
+
+            unique_label_count = len(
+                unique_labels
+            )
+
+            unique_label_ratio = (
+                unique_label_count
+                / query_count
+            )
+
+            # High DNS volume alone is not enough.
+            # Require substantial variation in the
+            # first DNS label as an additional signal.
+            if (
+                unique_label_ratio
+                < unique_label_ratio_threshold
+            ):
+                continue
+
+            alert = SecurityAlert(
+                timestamp=start_time,
+
+                rule_id="DNS-001",
+
+                rule_name=(
+                    "Possible DNS Exfiltration"
+                ),
+
+                severity="medium",
+
+                source_ip=source_ip,
+
+                protocol="DNS",
+
+                description=(
+                    f"{source_ip} generated "
+                    f"{query_count} DNS queries "
+                    f"with {unique_label_count} "
+                    f"unique first labels within "
+                    f"{window_seconds} seconds."
+                ),
+
+                evidence={
+                    "query_count": (
+                        query_count
                     ),
-
-                    severity="medium",
-
-                    source_ip=source_ip,
-
-                    protocol="DNS",
-
-                    description=(
-                        f"{source_ip} generated "
-                        f"{query_count} DNS queries "
-                        f"within {window_seconds} "
-                        f"seconds."
+                    "unique_label_count": (
+                        unique_label_count
                     ),
-
-                    evidence={
-                        "query_count": (
-                            query_count
-                        ),
-                        "window_seconds": (
-                            window_seconds
-                        ),
-                        "indicator": (
-                            "high_query_frequency"
-                        )
-                    },
-
-                    tactic="Exfiltration",
-
-                    technique=(
-                        "Exfiltration Over "
-                        "Alternative Protocol"
+                    "unique_label_ratio": round(
+                        unique_label_ratio,
+                        2
                     ),
+                    "window_seconds": (
+                        window_seconds
+                    ),
+                    "indicators": [
+                        "high_query_frequency",
+                        "high_unique_label_ratio"
+                    ]
+                },
 
-                    technique_id="T1048"
-                )
+                tactic="Exfiltration",
 
-                alerts.append(
-                    alert
-                )
+                technique=(
+                    "Exfiltration Over "
+                    "Alternative Protocol"
+                ),
 
-                break
+                technique_id="T1048"
+            )
+
+            alerts.append(
+                alert
+            )
+
+            break
 
     return alerts
