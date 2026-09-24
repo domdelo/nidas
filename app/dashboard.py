@@ -11,10 +11,15 @@ import streamlit as st
 # Project setup
 # --------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(
+    __file__
+).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT)
+    )
 
 
 from storage.alert_store import (
@@ -23,7 +28,11 @@ from storage.alert_store import (
 )
 
 
-DATABASE_PATH = PROJECT_ROOT / "data" / "nidas.db"
+DATABASE_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "nidas.db"
+)
 
 
 # --------------------------------------------------
@@ -31,21 +40,31 @@ DATABASE_PATH = PROJECT_ROOT / "data" / "nidas.db"
 # --------------------------------------------------
 
 st.set_page_config(
-    page_title="NIDAS Security Dashboard",
+    page_title=(
+        "NIDAS Security Dashboard"
+    ),
     page_icon="🛡️",
     layout="wide"
 )
 
 
-st.title("NIDAS")
+# --------------------------------------------------
+# Header
+# --------------------------------------------------
+
+st.title(
+    "🛡️ NIDAS"
+)
 
 st.subheader(
-    "Network Intrusion Detection & Alert System"
+    "Network Intrusion Detection "
+    "& Alert System"
 )
 
 st.caption(
-    "Security monitoring dashboard for network-based "
-    "detection and analyst triage."
+    "Security operations dashboard for "
+    "network-based threat detection, "
+    "monitoring, and analyst triage."
 )
 
 
@@ -71,13 +90,14 @@ with control2:
     if auto_refresh:
 
         st.success(
-            "Live dashboard refresh enabled"
+            "Live dashboard refresh enabled "
+            "— updating every 5 seconds."
         )
 
     else:
 
         st.info(
-            "Live dashboard refresh disabled"
+            "Live dashboard refresh disabled."
         )
 
 
@@ -86,7 +106,9 @@ with control2:
 # --------------------------------------------------
 
 @st.fragment(
-    run_every=5 if auto_refresh else None
+    run_every=5
+    if auto_refresh
+    else None
 )
 def monitoring_dashboard():
 
@@ -98,8 +120,10 @@ def monitoring_dashboard():
         DATABASE_PATH
     )
 
-    refresh_time = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
+    refresh_time = (
+        datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     )
 
     st.caption(
@@ -122,21 +146,32 @@ def monitoring_dashboard():
         alerts
     )
 
-    df["timestamp"] = pd.to_datetime(
-        df["timestamp"]
+    df["timestamp"] = (
+        pd.to_datetime(
+            df["timestamp"]
+        )
     )
 
 
     # ----------------------------------------------
-    # Sidebar filters
+    # Sidebar
     # ----------------------------------------------
 
     st.sidebar.header(
-        "Alert Filters"
+        "NIDAS Controls"
     )
 
+    st.sidebar.caption(
+        "Filter stored security alerts "
+        "for analyst investigation."
+    )
 
+    st.sidebar.divider()
+
+
+    # ----------------------------------------------
     # Severity filter
+    # ----------------------------------------------
 
     severity_options = sorted(
         df["severity"]
@@ -154,7 +189,44 @@ def monitoring_dashboard():
     )
 
 
+    # ----------------------------------------------
+    # Status filter
+    # ----------------------------------------------
+
+    status_options = [
+        "New",
+        "Investigating",
+        "Resolved"
+    ]
+
+    available_statuses = []
+
+    for status in status_options:
+
+        if status in (
+            df["status"]
+            .dropna()
+            .unique()
+        ):
+
+            available_statuses.append(
+                status
+            )
+
+
+    selected_statuses = (
+        st.sidebar.multiselect(
+            "Analyst Status",
+            available_statuses,
+            default=available_statuses,
+            key="status_filter"
+        )
+    )
+
+
+    # ----------------------------------------------
     # Detection rule filter
+    # ----------------------------------------------
 
     rule_options = sorted(
         df["rule_name"]
@@ -172,7 +244,9 @@ def monitoring_dashboard():
     )
 
 
+    # ----------------------------------------------
     # Source IP filter
+    # ----------------------------------------------
 
     source_options = sorted(
         df["source_ip"]
@@ -190,7 +264,9 @@ def monitoring_dashboard():
     )
 
 
+    # ----------------------------------------------
     # Alert source filter
+    # ----------------------------------------------
 
     alert_source_options = sorted(
         df["alert_source"]
@@ -208,11 +284,16 @@ def monitoring_dashboard():
     )
 
 
+    # ----------------------------------------------
     # Apply filters
+    # ----------------------------------------------
 
     filtered_df = df[
         df["severity"].isin(
             selected_severities
+        )
+        & df["status"].isin(
+            selected_statuses
         )
         & df["rule_name"].isin(
             selected_rules
@@ -223,12 +304,17 @@ def monitoring_dashboard():
         & df["alert_source"].isin(
             selected_alert_sources
         )
-    ]
+    ].copy()
 
 
     # ----------------------------------------------
-    # Metrics
+    # Dashboard overview
     # ----------------------------------------------
+
+    st.subheader(
+        "Security Overview"
+    )
+
 
     total_alerts = len(
         filtered_df
@@ -243,10 +329,10 @@ def monitoring_dashboard():
     )
 
 
-    medium_alerts = len(
+    open_alerts = len(
         filtered_df[
-            filtered_df["severity"]
-            == "medium"
+            filtered_df["status"]
+            != "Resolved"
         ]
     )
 
@@ -276,8 +362,8 @@ def monitoring_dashboard():
 
 
     metric3.metric(
-        "Medium Severity",
-        medium_alerts
+        "Open Alerts",
+        open_alerts
     )
 
 
@@ -291,44 +377,174 @@ def monitoring_dashboard():
 
 
     # ----------------------------------------------
-    # Charts
+    # Detection analytics
     # ----------------------------------------------
+
+    st.subheader(
+        "Detection Analytics"
+    )
+
 
     chart1, chart2 = st.columns(
         2
     )
 
 
+    # ----------------------------------------------
+    # Severity chart
+    # ----------------------------------------------
+
     with chart1:
 
-        st.subheader(
-            "Alerts by Severity"
+        st.write(
+            "**Alerts by Severity**"
         )
 
-        severity_counts = (
-            filtered_df["severity"]
-            .value_counts()
-        )
+        if filtered_df.empty:
 
-        st.bar_chart(
-            severity_counts
-        )
+            st.info(
+                "No severity data available "
+                "for the selected filters."
+            )
 
+        else:
+
+            severity_counts = (
+                filtered_df[
+                    "severity"
+                ]
+                .str.upper()
+                .value_counts()
+            )
+
+            st.bar_chart(
+                severity_counts,
+                horizontal=True
+            )
+
+
+    # ----------------------------------------------
+    # Rule chart
+    # ----------------------------------------------
 
     with chart2:
 
-        st.subheader(
-            "Alerts by Detection"
+        st.write(
+            "**Alerts by Detection Rule**"
         )
 
-        rule_counts = (
-            filtered_df["rule_name"]
-            .value_counts()
+        if filtered_df.empty:
+
+            st.info(
+                "No detection data available "
+                "for the selected filters."
+            )
+
+        else:
+
+            rule_counts = (
+                filtered_df[
+                    "rule_id"
+                ]
+                .value_counts()
+            )
+
+            st.bar_chart(
+                rule_counts,
+                horizontal=True
+            )
+
+
+    st.divider()
+
+
+    # ----------------------------------------------
+    # Alert status overview
+    # ----------------------------------------------
+
+    st.subheader(
+        "Analyst Workflow"
+    )
+
+
+    if filtered_df.empty:
+
+        st.info(
+            "No analyst status data available "
+            "for the selected filters."
         )
 
-        st.bar_chart(
-            rule_counts
+    else:
+
+        workflow1, workflow2 = (
+            st.columns(
+                [1, 2]
+            )
         )
+
+
+        with workflow1:
+
+            status_counts = (
+                filtered_df[
+                    "status"
+                ]
+                .value_counts()
+            )
+
+            st.write(
+                "**Alerts by Status**"
+            )
+
+            st.bar_chart(
+                status_counts,
+                horizontal=True
+            )
+
+
+        with workflow2:
+
+            new_count = len(
+                filtered_df[
+                    filtered_df["status"]
+                    == "New"
+                ]
+            )
+
+            investigating_count = len(
+                filtered_df[
+                    filtered_df["status"]
+                    == "Investigating"
+                ]
+            )
+
+            resolved_count = len(
+                filtered_df[
+                    filtered_df["status"]
+                    == "Resolved"
+                ]
+            )
+
+
+            status1, status2, status3 = (
+                st.columns(3)
+            )
+
+
+            status1.metric(
+                "New",
+                new_count
+            )
+
+            status2.metric(
+                "Investigating",
+                investigating_count
+            )
+
+            status3.metric(
+                "Resolved",
+                resolved_count
+            )
 
 
     st.divider()
@@ -342,6 +558,11 @@ def monitoring_dashboard():
         "Security Alerts"
     )
 
+    st.caption(
+        f"Showing {len(filtered_df)} "
+        f"of {len(df)} stored alerts."
+    )
+
 
     if filtered_df.empty:
 
@@ -351,6 +572,28 @@ def monitoring_dashboard():
         )
 
     else:
+
+        display_df = (
+            filtered_df.copy()
+        )
+
+        display_df = (
+            display_df.sort_values(
+                "timestamp",
+                ascending=False
+            )
+        )
+
+        display_df[
+            "timestamp"
+        ] = (
+            display_df[
+                "timestamp"
+            ].dt.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        )
+
 
         display_columns = [
             "timestamp",
@@ -366,11 +609,40 @@ def monitoring_dashboard():
 
 
         st.dataframe(
-            filtered_df[
+            display_df[
                 display_columns
             ],
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "timestamp": (
+                    "Timestamp"
+                ),
+                "severity": (
+                    "Severity"
+                ),
+                "status": (
+                    "Status"
+                ),
+                "alert_source": (
+                    "Source"
+                ),
+                "rule_id": (
+                    "Rule ID"
+                ),
+                "rule_name": (
+                    "Detection"
+                ),
+                "source_ip": (
+                    "Source IP"
+                ),
+                "destination_ip": (
+                    "Destination IP"
+                ),
+                "protocol": (
+                    "Protocol"
+                )
+            }
         )
 
 
@@ -378,11 +650,17 @@ def monitoring_dashboard():
 
 
     # ----------------------------------------------
-    # Analyst triage
+    # Alert investigation
     # ----------------------------------------------
 
     st.subheader(
         "Alert Investigation"
+    )
+
+    st.caption(
+        "Select an alert to review its "
+        "detection evidence and update "
+        "the analyst investigation status."
     )
 
 
@@ -396,17 +674,31 @@ def monitoring_dashboard():
         return
 
 
+    # ----------------------------------------------
+    # Build alert selection menu
+    # ----------------------------------------------
+
+    investigation_df = (
+        filtered_df.sort_values(
+            "timestamp",
+            ascending=False
+        )
+    )
+
+
     alert_choices = {}
 
 
-    for _, row in filtered_df.iterrows():
+    for _, row in (
+        investigation_df.iterrows()
+    ):
 
         label = (
-            f"{row['alert_id']} | "
+            f"{row['rule_id']} | "
             f"{row['severity'].upper()} | "
-            f"{row['alert_source']} | "
-            f"{row['rule_name']} | "
-            f"{row['source_ip']}"
+            f"{row['status']} | "
+            f"{row['source_ip']} | "
+            f"{row['timestamp'].strftime('%H:%M:%S')}"
         )
 
         alert_choices[
@@ -432,14 +724,52 @@ def monitoring_dashboard():
     )
 
 
-    detail1, detail2 = st.columns(
-        2
+    # ----------------------------------------------
+    # Selected alert summary
+    # ----------------------------------------------
+
+    st.write(
+        f"### {selected_alert['rule_name']}"
+    )
+
+
+    summary1, summary2, summary3 = (
+        st.columns(3)
+    )
+
+
+    summary1.metric(
+        "Severity",
+        selected_alert[
+            "severity"
+        ].upper()
+    )
+
+
+    summary2.metric(
+        "Status",
+        selected_alert[
+            "status"
+        ]
+    )
+
+
+    summary3.metric(
+        "Alert Source",
+        selected_alert[
+            "alert_source"
+        ]
     )
 
 
     # ----------------------------------------------
-    # Alert details - left column
+    # Alert details
     # ----------------------------------------------
+
+    detail1, detail2 = st.columns(
+        2
+    )
+
 
     with detail1:
 
@@ -451,17 +781,19 @@ def monitoring_dashboard():
         )
 
         st.write(
-            "**Rule:**",
+            "**Timestamp:**",
             selected_alert[
-                "rule_id"
-            ]
+                "timestamp"
+            ].strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
         )
 
         st.write(
-            "**Severity:**",
+            "**Rule ID:**",
             selected_alert[
-                "severity"
-            ].upper()
+                "rule_id"
+            ]
         )
 
         st.write(
@@ -471,17 +803,6 @@ def monitoring_dashboard():
             ]
         )
 
-        st.write(
-            "**Alert Source:**",
-            selected_alert[
-                "alert_source"
-            ]
-        )
-
-
-    # ----------------------------------------------
-    # Alert details - right column
-    # ----------------------------------------------
 
     with detail2:
 
@@ -510,6 +831,13 @@ def monitoring_dashboard():
             "**Technique:**",
             selected_alert[
                 "technique"
+            ]
+        )
+
+        st.write(
+            "**Technique ID:**",
+            selected_alert[
+                "technique_id"
             ]
         )
 
@@ -582,11 +910,11 @@ def monitoring_dashboard():
     st.divider()
 
     st.write(
-        "**Analyst Status:**"
+        "### Analyst Triage"
     )
 
 
-    status_options = [
+    analyst_status_options = [
         "New",
         "Investigating",
         "Resolved"
@@ -602,43 +930,62 @@ def monitoring_dashboard():
 
     if (
         current_status
-        not in status_options
+        not in analyst_status_options
     ):
 
         current_status = "New"
 
 
     current_index = (
-        status_options.index(
+        analyst_status_options.index(
             current_status
         )
     )
 
 
-    new_status = (
-        st.selectbox(
-            "Update status",
-            status_options,
-            index=current_index,
-            key=(
-                "status_"
-                + selected_alert[
-                    "alert_id"
-                ]
-            )
+    status_column, button_column = (
+        st.columns(
+            [2, 1]
         )
     )
 
 
-    if st.button(
-        "Save Status",
-        key=(
-            "save_"
-            + selected_alert[
-                "alert_id"
-            ]
+    with status_column:
+
+        new_status = (
+            st.selectbox(
+                "Investigation Status",
+                analyst_status_options,
+                index=current_index,
+                key=(
+                    "status_"
+                    + selected_alert[
+                        "alert_id"
+                    ]
+                )
+            )
         )
-    ):
+
+
+    with button_column:
+
+        st.write("")
+
+        st.write("")
+
+        save_status = st.button(
+            "Save Status",
+            key=(
+                "save_"
+                + selected_alert[
+                    "alert_id"
+                ]
+            ),
+            use_container_width=True
+        )
+
+
+    if save_status:
 
         update_alert_status(
             selected_alert[
@@ -648,12 +995,10 @@ def monitoring_dashboard():
             DATABASE_PATH
         )
 
-
         st.success(
             f"Alert status updated "
             f"to {new_status}."
         )
-
 
         st.rerun()
 
