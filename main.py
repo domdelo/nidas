@@ -130,6 +130,8 @@ def run_live_monitor(interface):
     #     "192.168.1.100"
     # ) -> datetime
     #
+    # Expired fingerprints are pruned by
+    # detection.live_monitor.get_new_alerts().
     alert_history = {}
 
 
@@ -194,13 +196,19 @@ def run_live_monitor(interface):
     # Start passive packet capture
     # ----------------------------------------------
 
-    sniffer = start_live_sniffer(
-        interface,
-        receive_packet
-    )
-
+    sniffer = None
 
     try:
+
+        sniffer = start_live_sniffer(
+            interface,
+            receive_packet
+        )
+
+
+        # ------------------------------------------
+        # Live detection loop
+        # ------------------------------------------
 
         while True:
 
@@ -304,6 +312,10 @@ def run_live_monitor(interface):
             print()
 
 
+    # ----------------------------------------------
+    # User stopped monitoring
+    # ----------------------------------------------
+
     except KeyboardInterrupt:
 
         print()
@@ -314,9 +326,33 @@ def run_live_monitor(interface):
         )
 
 
+    # ----------------------------------------------
+    # Capture/runtime error
+    # ----------------------------------------------
+
+    except Exception as error:
+
+        print()
+
+        print(
+            "Live monitoring error:"
+        )
+
+        print(
+            str(error)
+        )
+
+
+    # ----------------------------------------------
+    # Always stop sniffer cleanly
+    # ----------------------------------------------
+
     finally:
 
-        if sniffer.running:
+        if (
+            sniffer is not None
+            and sniffer.running
+        ):
 
             sniffer.stop()
 

@@ -28,6 +28,41 @@ def trim_packet_buffer(
     return recent_packets
 
 
+def prune_alert_history(
+    alert_history,
+    cooldown_seconds=60,
+    current_time=None
+):
+    if current_time is None:
+        current_time = datetime.now()
+
+    expired_fingerprints = []
+
+    for (
+        fingerprint,
+        last_alert_time
+    ) in alert_history.items():
+
+        age_seconds = (
+            current_time
+            - last_alert_time
+        ).total_seconds()
+
+        if (
+            age_seconds
+            >= cooldown_seconds
+        ):
+            expired_fingerprints.append(
+                fingerprint
+            )
+
+    for fingerprint in expired_fingerprints:
+
+        del alert_history[
+            fingerprint
+        ]
+
+
 def get_new_alerts(
     alerts,
     alert_history,
@@ -36,6 +71,14 @@ def get_new_alerts(
 ):
     if current_time is None:
         current_time = datetime.now()
+
+    # Remove fingerprints whose cooldown
+    # periods have already expired.
+    prune_alert_history(
+        alert_history,
+        cooldown_seconds,
+        current_time
+    )
 
     new_alerts = []
 
