@@ -583,6 +583,9 @@ Potential future extensions include:
 
 ## Screenshots
 
+Add screenshots of the finished project here.
+
+Suggested screenshots:
 
 ### SOC Dashboard
 
@@ -592,21 +595,21 @@ docs/images/dashboard-overview.png
 
 ### Alert Investigation
 
-```text
-docs/images/alert-investigation.png
-```
+Analysts can investigate individual alerts, review detection evidence and MITRE ATT&CK context, and update the alert's investigation status.
 
-### PCAP Detection
+![NIDAS Alert Investigation](docs/images/alert-investigation.png)
 
-```text
-docs/images/pcap-analysis.png
-```
+### PCAP Analysis
+
+The controlled 163-packet demonstration PCAP generates four expected alerts across the implemented detection rules.
+
+![NIDAS PCAP Analysis](docs/images/pcap-analysis.png)
 
 ### Passive Live Monitoring
 
-```text
-docs/images/live-monitoring.png
-```
+NIDAS passively monitors a selected network interface using a rolling detection window.
+
+![NIDAS Live Monitoring](docs/images/live-monitoring.png)
 
 ---
 
